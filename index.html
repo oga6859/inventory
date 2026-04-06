@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>入庫検収システム</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
@@ -33,7 +33,7 @@ input[readonly]{background:#f8f8f6;color:#888}
 .bd{background:#fff0f0;color:#c0392b;border-color:#f5b7b1}
 .bs{padding:6px 11px;font-size:12px}
 .cam-box{background:#f8f8f6;border:1px solid #e8e8e4;border-radius:10px;padding:16px;text-align:center}
-video{width:100%;max-height:200px;border-radius:8px;background:#000;display:none}
+video{width:100%;max-height:220px;border-radius:8px;background:#000;display:none}
 canvas{display:none}
 .cam-ph{padding:22px 0;color:#ccc}
 .cam-ph svg{width:34px;height:34px;margin:0 auto 5px;display:block}
@@ -53,8 +53,15 @@ canvas{display:none}
 .qr{display:flex;gap:8px}
 .qr input:first-child{width:80px}
 .qr input:last-child{width:64px}
-.bc-frame{position:relative;display:none}
-.bc-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:55%;height:55px;border:2px solid #1D9E75;border-radius:4px;pointer-events:none}
+.bc-wrap{position:relative}
+.bc-vid-box{position:relative;display:none}
+.bc-vid-box video{width:100%;max-height:220px;border-radius:8px;background:#000;display:block}
+.bc-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;height:80px;border:2px solid #1D9E75;border-radius:6px;pointer-events:none;box-shadow:0 0 0 1000px rgba(0,0,0,0.35)}
+.bc-hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:11px;color:#fff;pointer-events:none}
+.native-btn{width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:2px dashed #1D9E75;background:#f0fbf7;color:#0F6E56;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent}
+.native-btn:active{background:#e1f5ee}
+.divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:#ccc;font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#eee}
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{font-size:10px;font-weight:600;color:#aaa;text-align:left;padding:7px 8px;border-bottom:1px solid #eee;text-transform:uppercase;white-space:nowrap}
@@ -92,6 +99,7 @@ tr:last-child td{border-bottom:none}
       <button class="btn" onclick="setMode('barcode')">▦ バーコード</button>
       <button class="btn" onclick="setMode('manual')">✏️ 手入力</button>
     </div>
+
     <div id="mode-ocr" class="cam-box">
       <div class="cam-ph" id="ocr-ph"><svg viewBox="0 0 24 24" fill="#ccc"><path d="M3 3h4V1H3C1.9 1 1 1.9 1 3v4h2V3zm14-2v2h4v4h2V3c0-1.1-.9-2-2-2h-4zM3 17H1v4c0 1.1.9 2 2 2h4v-2H3v-4zm18 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4z"/></svg><div style="font-size:12px">カメラで品名を撮影</div></div>
       <video id="ocr-vid" autoplay playsinline></video>
@@ -104,19 +112,36 @@ tr:last-child td{border-bottom:none}
       <div id="ocr-prog" class="hidden"><div class="pb"><div class="pf" id="ocr-pf"></div></div><div class="pt" id="ocr-pt">解析中...</div></div>
       <div id="ocr-out"></div>
     </div>
+
     <div id="mode-barcode" class="cam-box hidden">
-      <div class="cam-ph" id="bc-ph"><svg viewBox="0 0 24 24" fill="#ccc" style="width:34px;height:34px;margin:0 auto 5px;display:block"><path d="M2 6h2v12H2zm3 0h1v12H5zm2 0h2v12H7zm3 0h2v12h-2zm3 0h1v12h-1zm2 0h1v12h-1zm2 0h3v12h-3z"/></svg><div style="font-size:12px">バーコードをカメラに向けてください</div></div>
-      <div class="bc-frame" id="bc-frame"><video id="bc-vid" autoplay playsinline style="display:block"></video><div class="bc-guide"></div></div>
-      <div class="br">
-        <button class="btn bp" onclick="startBC()" id="bb-start">スキャン開始</button>
-        <button class="btn bd bs hidden" onclick="stopBC()" id="bb-stop">停止</button>
+      <div class="bc-wrap">
+        <div class="cam-ph" id="bc-ph">
+          <svg viewBox="0 0 24 24" fill="#ccc" style="width:34px;height:34px;margin:0 auto 5px;display:block"><path d="M2 6h2v12H2zm3 0h1v12H5zm2 0h2v12H7zm3 0h2v12h-2zm3 0h1v12h-1zm2 0h1v12h-1zm2 0h3v12h-3z"/></svg>
+          <div style="font-size:12px;margin-bottom:14px">バーコードを読み取ります</div>
+          <button class="native-btn" onclick="document.getElementById('bc-file').click()">
+            📸 カメラで撮影して読み取る（推奨）
+          </button>
+          <input type="file" id="bc-file" accept="image/*" capture="environment" style="display:none" onchange="scanFromImage(this)">
+          <div class="divider">またはリアルタイムスキャン</div>
+          <button class="btn bp" onclick="startBC()" id="bb-start" style="width:100%;justify-content:center">▦ リアルタイムスキャン起動</button>
+        </div>
+        <div class="bc-vid-box" id="bc-vid-box">
+          <video id="bc-vid" autoplay playsinline muted></video>
+          <div class="bc-guide"></div>
+          <div class="bc-hint">バーコードを枠内に合わせてください</div>
+        </div>
+        <div class="br" id="bc-stop-row" style="display:none">
+          <button class="btn bd bs" onclick="stopBC()">停止</button>
+        </div>
       </div>
       <div id="bc-out"></div>
     </div>
+
     <div id="mode-manual" class="hidden">
       <div class="fr" style="margin-top:8px"><label class="fl">品名（手入力）</label><input type="text" id="manual-in" placeholder="品名を入力" oninput="document.getElementById('iname').value=this.value"></div>
     </div>
   </div>
+
   <div class="card">
     <div class="ct">入庫情報</div>
     <div class="fr"><label class="fl">品名</label><input type="text" id="iname" placeholder="品名"></div>
@@ -160,7 +185,7 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-let ocrStream=null,bcStream=null,bcCode='';
+let ocrStream=null,bcStream=null,bcReader=null,bcCode='';
 let gasUrl=localStorage.getItem('inv_gas_url')||'';
 const today=new Date().toISOString().slice(0,10);
 document.getElementById('recv-date').value=today;
@@ -188,9 +213,10 @@ function setMode(m){
   stopOCR(); stopBC();
 }
 
+// ---- OCR ----
 async function startOCR(){
   try{
-    ocrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    ocrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
     const v=document.getElementById('ocr-vid');v.srcObject=ocrStream;v.style.display='block';
     document.getElementById('ocr-ph').classList.add('hidden');
     document.getElementById('ob-start').classList.add('hidden');
@@ -198,7 +224,6 @@ async function startOCR(){
     document.getElementById('ob-stop').classList.remove('hidden');
   }catch(e){document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラアクセスが拒否されました</div>';}
 }
-
 async function captureOCR(){
   const v=document.getElementById('ocr-vid'),c=document.getElementById('ocr-cv');
   c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
@@ -219,7 +244,6 @@ async function captureOCR(){
   }catch(e){document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>OCRエラー</div>';}
   setTimeout(()=>{document.getElementById('ocr-prog').classList.add('hidden');pf.style.width='0';},1500);
 }
-
 function stopOCR(){
   if(ocrStream){ocrStream.getTracks().forEach(t=>t.stop());ocrStream=null;}
   document.getElementById('ocr-vid').style.display='none';
@@ -229,42 +253,84 @@ function stopOCR(){
   document.getElementById('ob-stop').classList.add('hidden');
 }
 
+// ---- バーコード：画像ファイルから読み取り（推奨） ----
+async function scanFromImage(input){
+  if(!input.files||!input.files[0]) return;
+  document.getElementById('bc-out').innerHTML='<div class="badge bs-in"><span class="spin"></span> 読み取り中...</div>';
+  const file=input.files[0];
+  const url=URL.createObjectURL(file);
+  const img=new Image();
+  img.onload=async()=>{
+    try{
+      const hints=new Map();
+      const formats=[
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.QR_CODE,
+        ZXing.BarcodeFormat.ITF,
+        ZXing.BarcodeFormat.CODABAR
+      ];
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      const reader=new ZXing.MultiFormatReader();
+      reader.setHints(hints);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;
+      canvas.getContext('2d').drawImage(img,0,0);
+      const imageData=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);
+      const luminance=new ZXing.RGBLuminanceSource(imageData.data,canvas.width,canvas.height);
+      const binary=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+      const result=reader.decode(binary);
+      bcCode=result.getText();
+      document.getElementById('iname').value=bcCode;
+      document.getElementById('imethod').value='バーコード';
+      document.getElementById('bc-out').innerHTML='<div class="badge bs-ok"><span class="dot"></span>読み取り成功: <strong>'+bcCode+'</strong></div>';
+    }catch(e){
+      document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>読み取れませんでした。明るい場所でまっすぐ撮影してください。</div>';
+    }
+    URL.revokeObjectURL(url);
+    input.value='';
+  };
+  img.src=url;
+}
+
+// ---- バーコード：リアルタイムスキャン（ZXing） ----
 async function startBC(){
   document.getElementById('bc-ph').classList.add('hidden');
-  document.getElementById('bc-frame').style.display='block';
-  document.getElementById('bb-start').classList.add('hidden');
-  document.getElementById('bb-stop').classList.remove('hidden');
-  document.getElementById('bc-out').innerHTML='<div class="badge bs-in"><span class="spin"></span> スキャン中...</div>';
+  document.getElementById('bc-vid-box').style.display='block';
+  document.getElementById('bc-stop-row').style.display='flex';
+  document.getElementById('bc-out').innerHTML='<div class="badge bs-in"><span class="spin"></span> スキャン中... バーコードを枠内へ</div>';
   try{
-    bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    document.getElementById('bc-vid').srcObject=bcStream;
-    Quagga.init({
-      inputStream:{name:'Live',type:'LiveStream',target:document.getElementById('bc-frame'),constraints:{facingMode:'environment'}},
-      decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','code_39_reader','upc_reader']},locate:true
-    },err=>{
-      if(err){document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>スキャナー起動エラー</div>';return;}
-      Quagga.start();
+    const hints=new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+    bcReader=new ZXing.BrowserMultiFormatReader(hints,{delayBetweenScanAttempts:100});
+    await bcReader.decodeFromVideoDevice(null,'bc-vid',function(result,err){
+      if(result){
+        bcCode=result.getText();
+        document.getElementById('iname').value=bcCode;
+        document.getElementById('imethod').value='バーコード ('+result.getBarcodeFormat()+')';
+        document.getElementById('bc-out').innerHTML='<div class="badge bs-ok"><span class="dot"></span>検出: <strong>'+bcCode+'</strong></div>';
+        stopBC();
+      }
     });
-    Quagga.onDetected(r=>{
-      bcCode=r.codeResult.code;
-      document.getElementById('iname').value=bcCode;
-      document.getElementById('imethod').value='バーコード ('+r.codeResult.format+')';
-      document.getElementById('bc-out').innerHTML='<div class="badge bs-ok"><span class="dot"></span>検出: '+bcCode+'</div>';
-      stopBC();
-    });
-  }catch(e){document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラアクセスが拒否されました</div>';}
+  }catch(e){
+    document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラエラー: '+e.message+'</div>';
+    stopBC();
+  }
 }
-
 function stopBC(){
-  if(typeof Quagga!=='undefined') try{Quagga.stop();}catch(e){}
+  if(bcReader){try{bcReader.reset();}catch(e){}bcReader=null;}
   if(bcStream){bcStream.getTracks().forEach(t=>t.stop());bcStream=null;}
   document.getElementById('bc-ph').classList.remove('hidden');
-  document.getElementById('bc-frame').style.display='none';
-  document.getElementById('bb-start').classList.remove('hidden');
-  document.getElementById('bb-stop').classList.add('hidden');
+  document.getElementById('bc-vid-box').style.display='none';
+  document.getElementById('bc-stop-row').style.display='none';
 }
 
-// フォーム送信（iPhone Chrome CORS回避）
+// ---- フォーム送信（iPhone CORS回避） ----
 function sendViaForm(data){
   return new Promise((resolve)=>{
     const id='fr_'+Date.now();
@@ -273,30 +339,23 @@ function sendViaForm(data){
     const form=document.createElement('form');
     form.method='POST';form.action=gasUrl;form.target=id;form.style.display='none';
     Object.entries(data).forEach(([k,v])=>{
-      const inp=document.createElement('input');
-      inp.type='hidden';inp.name=k;inp.value=v||'';form.appendChild(inp);
+      const inp=document.createElement('input');inp.type='hidden';inp.name=k;inp.value=v||'';form.appendChild(inp);
     });
     document.body.appendChild(form);
     let done=false;
     const finish=()=>{if(done)return;done=true;setTimeout(()=>{try{document.body.removeChild(form);document.body.removeChild(ifr);}catch(e){}},500);resolve('ok');};
-    ifr.onload=finish;
-    setTimeout(finish,5000);
+    ifr.onload=finish;setTimeout(finish,5000);
     form.submit();
   });
 }
 
-// JSONP（iPhone Chrome CORS回避・GET用）
+// ---- JSONP（履歴取得） ----
 function fetchJSONP(url){
   return new Promise((resolve,reject)=>{
     const cbName='cb_'+Date.now();
     const script=document.createElement('script');
     let done=false;
-    window[cbName]=(data)=>{
-      if(done)return;done=true;
-      delete window[cbName];
-      try{document.head.removeChild(script);}catch(e){}
-      resolve(data);
-    };
+    window[cbName]=(data)=>{if(done)return;done=true;delete window[cbName];try{document.head.removeChild(script);}catch(e){}resolve(data);};
     script.src=url+(url.includes('?')?'&':'?')+'callback='+cbName;
     script.onerror=()=>{if(done)return;done=true;delete window[cbName];reject(new Error('JSONP error'));};
     setTimeout(()=>{if(done)return;done=true;delete window[cbName];try{document.head.removeChild(script);}catch(e){}reject(new Error('timeout'));},8000);
@@ -317,15 +376,12 @@ async function doSubmit(){
   if(!itemName){showResult('er','品名を入力してください');return;}
   if(!gasUrl){showResult('er','設定タブでGAS URLを登録してください');return;}
   const data={
-    datetime:new Date().toLocaleString('ja-JP'),
-    worker,
+    datetime:new Date().toLocaleString('ja-JP'),worker,
     date:document.getElementById('recv-date').value,
-    itemName,
-    qty:document.getElementById('iqty').value||'1',
+    itemName,qty:document.getElementById('iqty').value||'1',
     unit:document.getElementById('iunit').value||'個',
     method:document.getElementById('imethod').value||'手入力',
-    barcode:bcCode||'',
-    memo:document.getElementById('imemo').value
+    barcode:bcCode||'',memo:document.getElementById('imemo').value
   };
   showResult('loading','スプレッドシートに記録中...');
   await sendViaForm(data);
@@ -336,9 +392,7 @@ async function doSubmit(){
 function clearForm(){
   ['iname','iqty','iunit','imemo','imethod','manual-in'].forEach(id=>{
     const el=document.getElementById(id);
-    if(id==='iqty')el.value='1';
-    else if(id==='iunit')el.value='個';
-    else el.value='';
+    if(id==='iqty')el.value='1';else if(id==='iunit')el.value='個';else el.value='';
   });
   document.getElementById('ocr-out').innerHTML='';
   document.getElementById('bc-out').innerHTML='';
