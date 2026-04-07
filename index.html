@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>入庫検収システム V1.4</title>
+<title>入庫検収システム V1.5</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -32,8 +32,6 @@ input[readonly]{background:#f8f8f6;color:#888}
 .bd{background:#fff0f0;color:#c0392b;border-color:#f5b7b1}
 .bsm{padding:6px 11px;font-size:12px}
 .cam-box{background:#f8f8f6;border:1px solid #e8e8e4;border-radius:10px;padding:16px;text-align:center}
-video{width:100%;max-height:220px;border-radius:8px;background:#000;display:none}
-canvas{display:none}
 .cam-ph{padding:16px 0;color:#ccc}
 .cam-ph svg{width:34px;height:34px;margin:0 auto 5px;display:block}
 .br{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
@@ -52,15 +50,40 @@ canvas{display:none}
 .qr-row{display:flex;gap:8px}
 .qr-row input:first-child{width:80px}
 .qr-row input:last-child{width:64px}
+
+/* OCRカメラビューア */
+.ocr-viewer{position:relative;width:100%;border-radius:8px;overflow:hidden;background:#000;display:none}
+.ocr-viewer video{width:100%;display:block;max-height:260px;object-fit:cover}
+.ocr-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+/* 枠外暗転 */
+.ocr-mask-top,.ocr-mask-bottom,.ocr-mask-left,.ocr-mask-right{position:absolute;background:rgba(0,0,0,0.45)}
+.ocr-mask-top{top:0;left:0;right:0}
+.ocr-mask-bottom{bottom:0;left:0;right:0}
+.ocr-mask-left{left:0}
+.ocr-mask-right{right:0}
+/* 解析枠 */
+.ocr-frame{position:absolute;border:2px solid #1D9E75;border-radius:4px}
+/* 四隅のコーナーマーカー */
+.ocr-corner{position:absolute;width:14px;height:14px;border-color:#1D9E75;border-style:solid}
+.ocr-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px}
+.ocr-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0}
+.ocr-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px}
+.ocr-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0}
+/* ガイドラベル */
+.ocr-label{position:absolute;left:50%;transform:translateX(-50%);background:rgba(29,158,117,0.85);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;white-space:nowrap;letter-spacing:0.03em}
+.ocr-label-top{bottom:calc(100% + 6px)}
+.ocr-scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#1D9E75,transparent);animation:scanmove 2s linear infinite}
+@keyframes scanmove{0%{top:0}100%{top:100%}}
+
+/* バーコード貼り付け */
 .bc-paste-box{background:#fff;border:2px dashed #1D9E75;border-radius:10px;padding:16px}
 .bc-paste-label{font-size:12px;color:#3B6D11;margin-bottom:8px;font-weight:500}
 .bc-input-row{display:flex;gap:8px;align-items:center}
 .bc-input-row input{flex:1;font-size:16px;padding:11px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;-webkit-appearance:none}
 .bc-input-row input:focus{border-color:#1D9E75;box-shadow:0 0 0 2px rgba(29,158,117,0.12)}
-.bc-set-btn{padding:11px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:#1D9E75;color:#fff;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.bc-set-btn{padding:11px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:#1D9E75;color:#fff;white-space:nowrap}
 .bc-set-btn:active{background:#0F6E56}
 .bc-tip{background:#f0fbf7;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#3B6D11;line-height:1.7}
-.bc-tip strong{font-weight:600}
 .divider{display:flex;align-items:center;gap:8px;color:#ccc;font-size:11px;margin:12px 0}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:#eee}
 .bc-rt-box{position:relative;display:none}
@@ -78,12 +101,13 @@ tr:last-child td{border-bottom:none}
 .mb-m{background:#f1efe8;color:#888}
 .empty{text-align:center;padding:28px;color:#ccc;font-size:13px}
 .gas-note{background:#EAF3DE;border:1px solid #97C459;border-radius:8px;padding:10px 12px;font-size:12px;color:#3B6D11;line-height:1.6;margin-bottom:10px}
+canvas{display:none}
 </style>
 </head>
 <body>
 <div class="hdr">
   <div class="hdr-icon"><svg viewBox="0 0 24 24"><path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h8v2zm3-4H7v-2h11v2zm0-4H7V7h11v2z"/></svg></div>
-  <div><div class="hdr-title">入庫検収システム V1.4</div><div class="hdr-sub" id="hdr-sub">設定からGAS URLを入力してください</div></div>
+  <div><div class="hdr-title">入庫検収システム V1.5</div><div class="hdr-sub" id="hdr-sub">設定からGAS URLを入力してください</div></div>
 </div>
 <div class="tabs">
   <div class="tab active" onclick="gotoTab('receive')">入庫登録</div>
@@ -106,9 +130,19 @@ tr:last-child td{border-bottom:none}
       <button class="btn" onclick="setMode('manual')">✏️ 手入力</button>
     </div>
 
+    <!-- OCRモード -->
     <div id="mode-ocr" class="cam-box">
-      <div class="cam-ph" id="ocr-ph"><svg viewBox="0 0 24 24" fill="#ccc"><path d="M3 3h4V1H3C1.9 1 1 1.9 1 3v4h2V3zm14-2v2h4v4h2V3c0-1.1-.9-2-2-2h-4zM3 17H1v4c0 1.1.9 2 2 2h4v-2H3v-4zm18 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4z"/></svg><div style="font-size:12px">カメラで品名を撮影</div></div>
-      <video id="ocr-vid" autoplay playsinline></video>
+      <div class="cam-ph" id="ocr-ph">
+        <svg viewBox="0 0 24 24" fill="#ccc"><path d="M3 3h4V1H3C1.9 1 1 1.9 1 3v4h2V3zm14-2v2h4v4h2V3c0-1.1-.9-2-2-2h-4zM3 17H1v4c0 1.1.9 2 2 2h4v-2H3v-4zm18 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4z"/></svg>
+        <div style="font-size:12px">枠内に品名を合わせて撮影します</div>
+      </div>
+      <!-- カメラビューア（枠付き） -->
+      <div class="ocr-viewer" id="ocr-viewer">
+        <video id="ocr-vid" autoplay playsinline></video>
+        <div class="ocr-overlay" id="ocr-overlay">
+          <!-- マスク4面・枠・コーナー・ラベルはJSで動的生成 -->
+        </div>
+      </div>
       <canvas id="ocr-cv"></canvas>
       <div class="br">
         <button class="btn bp" onclick="startOCR()" id="ob-start">カメラ起動</button>
@@ -119,6 +153,7 @@ tr:last-child td{border-bottom:none}
       <div id="ocr-out"></div>
     </div>
 
+    <!-- バーコードモード -->
     <div id="mode-barcode" class="hidden">
       <div id="bc-native-area">
         <div class="bc-paste-box">
@@ -129,14 +164,14 @@ tr:last-child td{border-bottom:none}
           </div>
           <div class="bc-tip">
             <strong>手順：</strong><br>
-            ① 別アプリ（Linearscanなど）でバーコードをスキャン<br>
+            ① Linearscanなどでバーコードをスキャン<br>
             ② 読み取り番号をコピー<br>
-            ③ この画面に戻り、入力欄を長押し→「貼り付け」→セット
+            ③ 入力欄を長押し→「貼り付け」で自動セット
           </div>
         </div>
         <div id="bc-android-area" class="hidden">
           <div class="divider">またはカメラで直接スキャン（Android）</div>
-          <button class="btn bp" style="width:100%;justify-content:center" onclick="startBcRT()" id="bc-rt-btn">▦ リアルタイムスキャン起動</button>
+          <button class="btn bp" style="width:100%;justify-content:center" onclick="startBcRT()">▦ リアルタイムスキャン起動</button>
         </div>
       </div>
       <div class="bc-rt-box" id="bc-rt-box">
@@ -148,8 +183,12 @@ tr:last-child td{border-bottom:none}
       <div id="bc-out"></div>
     </div>
 
+    <!-- 手入力モード -->
     <div id="mode-manual" class="hidden">
-      <div class="fr" style="margin-top:8px"><label class="fl">品名（手入力）</label><input type="text" id="manual-in" placeholder="品名を入力" oninput="document.getElementById('iname').value=this.value"></div>
+      <div class="fr" style="margin-top:8px">
+        <label class="fl">品名（手入力）</label>
+        <input type="text" id="manual-in" placeholder="品名を入力" oninput="document.getElementById('iname').value=this.value">
+      </div>
     </div>
   </div>
 
@@ -201,6 +240,9 @@ let gasUrl=localStorage.getItem('inv_gas_url')||'';
 const hasBD='BarcodeDetector' in window;
 const isAndroid=/Android/i.test(navigator.userAgent);
 
+// OCR枠のサイズ比率（ビデオ領域に対して）
+const FRAME_X=0.08, FRAME_Y=0.18, FRAME_W=0.84, FRAME_H=0.55;
+
 const today=new Date().toISOString().slice(0,10);
 document.getElementById('recv-date').value=today;
 if(gasUrl){document.getElementById('gas-url').value=gasUrl;document.getElementById('hdr-sub').textContent='Google Sheetsに接続済み';}
@@ -210,23 +252,37 @@ const sw=sessionStorage.getItem('inv_w');
 if(sw) document.getElementById('worker').value=sw;
 document.getElementById('worker').addEventListener('input',function(){sessionStorage.setItem('inv_w',this.value);});
 
-// AndroidのみリアルタイムスキャンUIを表示
-if(isAndroid||hasBD){
-  document.getElementById('bc-android-area').classList.remove('hidden');
+if(isAndroid||hasBD) document.getElementById('bc-android-area').classList.remove('hidden');
+
+document.getElementById('bc-paste-input').addEventListener('keydown',function(e){if(e.key==='Enter') bcPasteSet();});
+document.getElementById('bc-paste-input').addEventListener('paste',function(){setTimeout(()=>{if(this.value.trim().length>=4) bcPasteSet();},100);});
+
+// OCRオーバーレイ構築
+function buildOCROverlay(){
+  const overlay=document.getElementById('ocr-overlay');
+  overlay.innerHTML='';
+  const fw=FRAME_W*100+'%', fh=FRAME_H*100+'%';
+  const fx=FRAME_X*100+'%', fy=FRAME_Y*100+'%';
+  const maskH_top=FRAME_Y*100+'%';
+  const maskH_bot=(1-FRAME_Y-FRAME_H)*100+'%';
+  const maskW_lr=FRAME_X*100+'%';
+
+  // マスク上下左右
+  overlay.innerHTML=`
+    <div class="ocr-mask-top" style="height:${maskH_top}"></div>
+    <div class="ocr-mask-bottom" style="height:${maskH_bot}"></div>
+    <div class="ocr-mask-left" style="top:${maskH_top};bottom:${maskH_bot};width:${maskW_lr}"></div>
+    <div class="ocr-mask-right" style="top:${maskH_top};bottom:${maskH_bot};right:0;width:${maskW_lr}"></div>
+    <div class="ocr-frame" style="left:${fx};top:${fy};width:${fw};height:${fh}">
+      <div class="ocr-corner tl"></div>
+      <div class="ocr-corner tr"></div>
+      <div class="ocr-corner bl"></div>
+      <div class="ocr-corner br"></div>
+      <div class="ocr-label ocr-label-top">品名をこの枠内に収めてください</div>
+      <div class="ocr-scan-line"></div>
+    </div>
+  `;
 }
-
-// Enterキーでセット
-document.getElementById('bc-paste-input').addEventListener('keydown',function(e){
-  if(e.key==='Enter') bcPasteSet();
-});
-
-// 貼り付け時に自動セット（ペーストイベント）
-document.getElementById('bc-paste-input').addEventListener('paste',function(e){
-  setTimeout(()=>{
-    const v=this.value.trim();
-    if(v.length>=4) bcPasteSet();
-  },100);
-});
 
 function gotoTab(n){
   ['receive','history','settings'].forEach((t,i)=>{
@@ -249,18 +305,37 @@ function setMode(m){
 async function startOCR(){
   try{
     ocrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
-    const v=document.getElementById('ocr-vid');v.srcObject=ocrStream;v.style.display='block';
+    const v=document.getElementById('ocr-vid');
+    v.srcObject=ocrStream;
+    const viewer=document.getElementById('ocr-viewer');
+    viewer.style.display='block';
     document.getElementById('ocr-ph').classList.add('hidden');
     document.getElementById('ob-start').classList.add('hidden');
     document.getElementById('ob-cap').classList.remove('hidden');
     document.getElementById('ob-stop').classList.remove('hidden');
-  }catch(e){document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラアクセスが拒否されました</div>';}
+    // ビデオのサイズ確定後にオーバーレイ構築
+    v.addEventListener('loadedmetadata',buildOCROverlay,{once:true});
+    buildOCROverlay();
+  }catch(e){
+    document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラアクセスが拒否されました</div>';
+  }
 }
+
 async function captureOCR(){
-  const v=document.getElementById('ocr-vid'),c=document.getElementById('ocr-cv');
-  c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+  const v=document.getElementById('ocr-vid');
+  const c=document.getElementById('ocr-cv');
+  const vw=v.videoWidth, vh=v.videoHeight;
+
+  // 枠内だけを切り取ってOCR
+  const cropX=Math.round(vw*FRAME_X);
+  const cropY=Math.round(vh*FRAME_Y);
+  const cropW=Math.round(vw*FRAME_W);
+  const cropH=Math.round(vh*FRAME_H);
+  c.width=cropW; c.height=cropH;
+  c.getContext('2d').drawImage(v, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
   document.getElementById('ocr-prog').classList.remove('hidden');
-  const pf=document.getElementById('ocr-pf'),pt=document.getElementById('ocr-pt');
+  const pf=document.getElementById('ocr-pf'), pt=document.getElementById('ocr-pt');
   try{
     const r=await Tesseract.recognize(c.toDataURL('image/jpeg',0.95),'jpn+eng',{
       logger:m=>{if(m.status==='recognizing text'){pf.style.width=(m.progress*90)+'%';pt.textContent='解析中... '+Math.round(m.progress*100)+'%';}}
@@ -271,24 +346,27 @@ async function captureOCR(){
       document.getElementById('ocr-out').innerHTML='<div class="ocr-box">'+text+'</div><div class="badge bs-ok"><span class="dot"></span>OCR認識完了</div>';
       document.getElementById('iname').value=text;
     }else{
-      document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>テキストを認識できませんでした</div>';
+      document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>テキストを認識できませんでした。枠内に文字を収めて再撮影してください。</div>';
     }
-  }catch(e){document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>OCRエラー</div>';}
+  }catch(e){
+    document.getElementById('ocr-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>OCRエラー</div>';
+  }
   setTimeout(()=>{document.getElementById('ocr-prog').classList.add('hidden');pf.style.width='0';},1500);
 }
+
 function stopOCR(){
   if(ocrStream){ocrStream.getTracks().forEach(t=>t.stop());ocrStream=null;}
-  document.getElementById('ocr-vid').style.display='none';
+  document.getElementById('ocr-viewer').style.display='none';
   document.getElementById('ocr-ph').classList.remove('hidden');
   document.getElementById('ob-start').classList.remove('hidden');
   document.getElementById('ob-cap').classList.add('hidden');
   document.getElementById('ob-stop').classList.add('hidden');
 }
 
-// ---- バーコード：貼り付けセット ----
+// ---- バーコード ----
 function bcPasteSet(){
   const code=document.getElementById('bc-paste-input').value.trim();
-  if(!code){return;}
+  if(!code) return;
   bcCode=code;
   document.getElementById('iname').value=code;
   document.getElementById('imethod').value='バーコード(貼り付け)';
@@ -296,7 +374,6 @@ function bcPasteSet(){
   document.getElementById('bc-paste-input').value='';
 }
 
-// ---- バーコード：リアルタイム（Android/BarcodeDetector） ----
 async function startBcRT(){
   document.getElementById('bc-native-area').style.display='none';
   document.getElementById('bc-rt-box').style.display='block';
@@ -305,8 +382,7 @@ async function startBcRT(){
   try{
     bcRTStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}});
     const vid=document.getElementById('bc-rt-vid');
-    vid.srcObject=bcRTStream;
-    await vid.play();
+    vid.srcObject=bcRTStream; await vid.play();
     const bd=new BarcodeDetector({formats:['aztec','codabar','code_39','code_93','code_128','data_matrix','ean_8','ean_13','itf','pdf417','qr_code','upc_a','upc_e']});
     const scan=async()=>{
       if(!bcRTStream) return;
@@ -315,7 +391,7 @@ async function startBcRT(){
         if(results&&results.length>0){
           bcCode=results[0].rawValue;
           document.getElementById('iname').value=bcCode;
-          document.getElementById('imethod').value='バーコード('+( results[0].format||'RT')+')';
+          document.getElementById('imethod').value='バーコード('+(results[0].format||'RT')+')';
           document.getElementById('bc-out').innerHTML='<div class="badge bs-ok" style="margin-top:8px"><span class="dot"></span>検出: <strong>'+bcCode+'</strong></div>';
           stopBcRT(); return;
         }
@@ -337,7 +413,7 @@ function stopBcRT(){
   document.getElementById('bc-native-area').style.display='block';
 }
 
-// ---- 送信 ----
+// ---- 送信・履歴 ----
 function sendViaForm(data){
   return new Promise((resolve)=>{
     const id='fr_'+Date.now();
