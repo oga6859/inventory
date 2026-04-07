@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>入庫検収システム</title>
+<title>入庫検収システム test.01</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
@@ -22,7 +21,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .ct{font-size:10px;font-weight:600;color:#aaa;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.08em}
 .fr{margin-bottom:10px}
 .fl{font-size:11px;color:#888;margin-bottom:3px;display:block}
-input[type=text],input[type=date]{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff;color:#1a1a1a;outline:none;-webkit-appearance:none}
+input[type=text],input[type=date],input[type=number]{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff;color:#1a1a1a;outline:none;-webkit-appearance:none}
 input:focus{border-color:#1D9E75;box-shadow:0 0 0 2px rgba(29,158,117,0.12)}
 input[readonly]{background:#f8f8f6;color:#888}
 .btn-g{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
@@ -42,6 +41,7 @@ canvas{display:none}
 .bs-ok{background:#e1f5ee;color:#0F6E56}
 .bs-er{background:#fceaea;color:#c0392b}
 .bs-in{background:#e6f1fb;color:#185FA5}
+.bs-warn{background:#faeeda;color:#633806}
 .dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
 .spin{width:13px;height:13px;border:2px solid rgba(29,158,117,0.25);border-top-color:#1D9E75;border-radius:50%;animation:sp 0.7s linear infinite;display:inline-block}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -50,16 +50,18 @@ canvas{display:none}
 .pf{height:100%;background:#1D9E75;transition:width 0.3s;width:0}
 .pt{font-size:11px;color:#aaa;margin-top:3px;text-align:center}
 .ocr-box{background:#f8f8f6;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;line-height:1.6;color:#444;text-align:left}
-.qr{display:flex;gap:8px}
-.qr input:first-child{width:80px}
-.qr input:last-child{width:64px}
-.bc-btn-large{width:100%;padding:14px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:2px solid #1D9E75;background:#f0fbf7;color:#0F6E56;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px;-webkit-tap-highlight-color:transparent}
-.bc-btn-large:active{background:#e1f5ee}
-.divider{display:flex;align-items:center;gap:8px;color:#ccc;font-size:11px;margin:10px 0}
-.divider::before,.divider::after{content:'';flex:1;height:1px;background:#eee}
-#html5-qrcode-scan-region{border-radius:8px;overflow:hidden}
-#html5-qrcode-scan-region video{display:block !important;border-radius:8px}
-#html5-qrcode-scan-region img{display:none}
+.qr-row{display:flex;gap:8px}
+.qr-row input:first-child{width:80px}
+.qr-row input:last-child{width:64px}
+.bc-large-btn{width:100%;padding:16px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;border:2px solid #1D9E75;background:#f0fbf7;color:#0F6E56;display:flex;align-items:center;justify-content:center;gap:10px;-webkit-tap-highlight-color:transparent;margin-bottom:10px}
+.bc-large-btn:active{background:#e1f5ee}
+.bc-large-btn:disabled{opacity:0.5;cursor:not-allowed}
+.bc-rt-box{position:relative;display:none}
+.bc-rt-box video{width:100%;max-height:220px;border-radius:8px;background:#000;display:block}
+.bc-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:75%;height:90px;border:2px solid #1D9E75;border-radius:6px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,0.4)}
+.bc-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:#fff}
+.fallback-box{background:#fff8e1;border:1px solid #FFD54F;border-radius:8px;padding:12px;margin-top:8px;text-align:left}
+.fallback-box p{font-size:12px;color:#795548;margin-bottom:8px;line-height:1.6}
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{font-size:10px;font-weight:600;color:#aaa;text-align:left;padding:7px 8px;border-bottom:1px solid #eee;text-transform:uppercase;white-space:nowrap}
@@ -90,6 +92,7 @@ tr:last-child td{border-bottom:none}
     <div class="fr"><label class="fl">作業者名</label><input type="text" id="worker" placeholder="作業者名を入力"></div>
     <div class="fr"><label class="fl">入庫日</label><input type="date" id="recv-date"></div>
   </div>
+
   <div class="card">
     <div class="ct">商品情報の取得</div>
     <div class="btn-g">
@@ -112,36 +115,51 @@ tr:last-child td{border-bottom:none}
     </div>
 
     <div id="mode-barcode" class="cam-box hidden">
-      <div id="bc-menu">
-        <div style="font-size:12px;color:#aaa;margin-bottom:12px">バーコードを読み取ります</div>
-        <button class="bc-btn-large" onclick="startBarcodeFile()">
-          📸 写真を撮影して読み取る
-        </button>
-        <input type="file" id="bc-file" accept="image/*" capture="environment" style="display:none" onchange="onBarcodeFile(this)">
-        <div class="divider">またはリアルタイムスキャン</div>
-        <button class="btn bp" style="width:100%;justify-content:center" onclick="startBarcodeRT()">▦ リアルタイムスキャン起動</button>
-      </div>
-      <div id="bc-scanner-wrap" style="display:none">
-        <div id="html5-qrcode-scan-region"></div>
-        <div class="br" style="margin-top:10px">
-          <button class="btn bd bsm" onclick="stopBarcodeRT()">停止</button>
+      <div id="bc-main">
+        <div id="bc-photo-area">
+          <button class="bc-large-btn" id="bc-photo-btn" onclick="bcPhotoScan()">
+            📸 写真を撮影してバーコード読み取り
+          </button>
+          <input type="file" id="bc-file-input" accept="image/*" capture="environment" style="display:none" onchange="bcOnFile(this)">
+          <div id="bc-processing" class="hidden" style="padding:16px 0">
+            <div class="badge bs-in"><span class="spin"></span> 解析中...</div>
+          </div>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;color:#ccc;font-size:11px;margin:10px 0">
+          <div style="flex:1;height:1px;background:#eee"></div>またはリアルタイム<div style="flex:1;height:1px;background:#eee"></div>
+        </div>
+        <button class="btn bp" style="width:100%;justify-content:center" onclick="bcStartRT()" id="bc-rt-btn">▦ リアルタイムスキャン</button>
       </div>
-      <div id="bc-processing" style="display:none;padding:20px 0">
-        <div class="badge bs-in"><span class="spin"></span> 解析中...</div>
+      <div class="bc-rt-box" id="bc-rt-box">
+        <video id="bc-rt-vid" autoplay playsinline muted></video>
+        <div class="bc-guide"></div>
+        <div class="bc-hint">バーコードを枠内に合わせてください</div>
+      </div>
+      <div id="bc-rt-stop" class="hidden br"><button class="btn bd bsm" onclick="bcStopRT()">停止</button></div>
+      <div id="bc-fallback" class="fallback-box hidden">
+        <p>⚠️ お使いのブラウザはバーコード自動検出に対応していません。<br>
+        iPhoneの場合は<strong>Safariで開く</strong>か、バーコード番号を直接入力してください。</p>
+        <label class="fl">バーコード番号を入力</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="bc-manual-code" placeholder="例: 4901234567890" style="flex:1;font-size:16px">
+          <button class="btn bp bsm" onclick="bcManualSet()">セット</button>
+        </div>
       </div>
       <div id="bc-out"></div>
     </div>
 
     <div id="mode-manual" class="hidden">
-      <div class="fr" style="margin-top:8px"><label class="fl">品名（手入力）</label><input type="text" id="manual-in" placeholder="品名を入力" oninput="document.getElementById('iname').value=this.value"></div>
+      <div class="fr" style="margin-top:8px">
+        <label class="fl">品名（手入力）</label>
+        <input type="text" id="manual-in" placeholder="品名を入力" oninput="document.getElementById('iname').value=this.value">
+      </div>
     </div>
   </div>
 
   <div class="card">
     <div class="ct">入庫情報</div>
     <div class="fr"><label class="fl">品名</label><input type="text" id="iname" placeholder="品名"></div>
-    <div class="fr"><label class="fl">数量</label><div class="qr"><input type="text" id="iqty" value="1"><input type="text" id="iunit" value="個"></div></div>
+    <div class="fr"><label class="fl">数量</label><div class="qr-row"><input type="text" id="iqty" value="1"><input type="text" id="iunit" value="個"></div></div>
     <div class="fr"><label class="fl">備考</label><input type="text" id="imemo" placeholder="任意"></div>
     <div class="fr"><label class="fl">入力方法</label><input type="text" id="imethod" readonly></div>
     <div class="br" style="justify-content:flex-start;margin-top:0">
@@ -181,8 +199,10 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-let ocrStream=null,bcScanner=null,bcCode='';
+let ocrStream=null,bcRTStream=null,bcRTTimer=null,bcCode='';
 let gasUrl=localStorage.getItem('inv_gas_url')||'';
+const hasBD='BarcodeDetector' in window;
+
 const today=new Date().toISOString().slice(0,10);
 document.getElementById('recv-date').value=today;
 if(gasUrl){document.getElementById('gas-url').value=gasUrl;document.getElementById('hdr-sub').textContent='Google Sheetsに接続済み';}
@@ -191,6 +211,13 @@ if(dw){document.getElementById('worker').value=dw;document.getElementById('def-w
 const sw=sessionStorage.getItem('inv_w');
 if(sw) document.getElementById('worker').value=sw;
 document.getElementById('worker').addEventListener('input',function(){sessionStorage.setItem('inv_w',this.value);});
+
+// BarcodeDetector未対応の場合は撮影ボタンを無効化してフォールバック表示
+if(!hasBD){
+  document.getElementById('bc-photo-btn').disabled=true;
+  document.getElementById('bc-rt-btn').disabled=true;
+  document.getElementById('bc-fallback').classList.remove('hidden');
+}
 
 function gotoTab(n){
   ['receive','history','settings'].forEach((t,i)=>{
@@ -206,7 +233,7 @@ function setMode(m){
   if(m==='ocr') document.getElementById('imethod').value='OCR';
   if(m==='barcode') document.getElementById('imethod').value='バーコード';
   if(m==='manual') document.getElementById('imethod').value='手入力';
-  stopOCR(); stopBarcodeRT();
+  stopOCR(); bcStopRT();
 }
 
 // ---- OCR ----
@@ -249,103 +276,88 @@ function stopOCR(){
   document.getElementById('ob-stop').classList.add('hidden');
 }
 
-// ---- バーコード：撮影→ファイル解析 ----
-function startBarcodeFile(){
-  document.getElementById('bc-file').click();
+// ---- バーコード：撮影→BarcodeDetector ----
+function bcPhotoScan(){
+  document.getElementById('bc-file-input').click();
 }
 
-async function onBarcodeFile(input){
+async function bcOnFile(input){
   if(!input.files||!input.files[0]) return;
-  document.getElementById('bc-menu').style.display='none';
-  document.getElementById('bc-processing').style.display='block';
+  document.getElementById('bc-processing').classList.remove('hidden');
+  document.getElementById('bc-photo-btn').disabled=true;
   document.getElementById('bc-out').innerHTML='';
   const file=input.files[0];
   try{
-    // まずBarcodeDetector API（Android Chrome対応・最高速）を試みる
-    if('BarcodeDetector' in window){
-      const bd=new BarcodeDetector({formats:['aztec','codabar','code_39','code_93','code_128','data_matrix','ean_8','ean_13','itf','pdf417','qr_code','upc_a','upc_e']});
-      const bitmap=await createImageBitmap(file);
-      const results=await bd.detect(bitmap);
-      if(results&&results.length>0){
-        onBarcodeDetected(results[0].rawValue,'BarcodeDetector');
-        input.value=''; return;
-      }
+    const bitmap=await createImageBitmap(file);
+    const bd=new BarcodeDetector({formats:['aztec','codabar','code_39','code_93','code_128','data_matrix','ean_8','ean_13','itf','pdf417','qr_code','upc_a','upc_e']});
+    const results=await bd.detect(bitmap);
+    if(results&&results.length>0){
+      bcSetResult(results[0].rawValue, results[0].format||'撮影');
+    } else {
+      document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>バーコードを検出できませんでした。明るい場所でまっすぐ撮影してください。</div>';
     }
-    // html5-qrcodeでファイルスキャン
-    const html5QrCode=new Html5Qrcode('html5-qrcode-scan-region');
-    const result=await html5QrCode.scanFileV2(file, true);
-    onBarcodeDetected(result.decodedText,'html5-qrcode');
-    try{await html5QrCode.clear();}catch(e){}
   }catch(e){
-    document.getElementById('bc-processing').style.display='none';
-    document.getElementById('bc-menu').style.display='block';
-    document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>読み取れませんでした。明るい場所でバーコードをまっすぐ撮影してください。</div>';
+    document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>解析エラー: '+e.message+'</div>';
   }
+  document.getElementById('bc-processing').classList.add('hidden');
+  document.getElementById('bc-photo-btn').disabled=false;
   input.value='';
 }
 
-// ---- バーコード：リアルタイムスキャン ----
-async function startBarcodeRT(){
-  document.getElementById('bc-menu').style.display='none';
-  document.getElementById('bc-scanner-wrap').style.display='block';
+// ---- バーコード：リアルタイム（BarcodeDetector + video） ----
+async function bcStartRT(){
+  if(!hasBD){return;}
+  document.getElementById('bc-main').style.display='none';
+  document.getElementById('bc-rt-box').style.display='block';
+  document.getElementById('bc-rt-stop').classList.remove('hidden');
   document.getElementById('bc-out').innerHTML='<div class="badge bs-in" style="margin-top:8px"><span class="spin"></span> スキャン中...</div>';
   try{
-    bcScanner=new Html5Qrcode('html5-qrcode-scan-region');
-    const config={
-      fps:15,
-      qrbox:{width:280,height:120},
-      aspectRatio:1.5,
-      formatsToSupport:[
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.CODABAR,
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.DATA_MATRIX,
-        Html5QrcodeSupportedFormats.PDF_417
-      ]
+    bcRTStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+    const vid=document.getElementById('bc-rt-vid');
+    vid.srcObject=bcRTStream;
+    await vid.play();
+    const bd=new BarcodeDetector({formats:['aztec','codabar','code_39','code_93','code_128','data_matrix','ean_8','ean_13','itf','pdf417','qr_code','upc_a','upc_e']});
+    const scan=async()=>{
+      if(!bcRTStream) return;
+      try{
+        const results=await bd.detect(vid);
+        if(results&&results.length>0){
+          bcSetResult(results[0].rawValue, results[0].format||'リアルタイム');
+          bcStopRT(); return;
+        }
+      }catch(e){}
+      bcRTTimer=setTimeout(scan,200);
     };
-    await bcScanner.start(
-      {facingMode:'environment'},
-      config,
-      (text,result)=>{
-        onBarcodeDetected(text,'リアルタイム');
-        stopBarcodeRT();
-      },
-      ()=>{}
-    );
+    scan();
   }catch(e){
-    document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラエラー: '+e+'</div>';
-    stopBarcodeRT();
+    document.getElementById('bc-out').innerHTML='<div class="badge bs-er"><span class="dot"></span>カメラエラー: '+e.message+'</div>';
+    bcStopRT();
   }
 }
 
-function stopBarcodeRT(){
-  if(bcScanner){
-    bcScanner.stop().catch(()=>{}).finally(()=>{
-      try{bcScanner.clear();}catch(e){}
-      bcScanner=null;
-    });
-  }
-  document.getElementById('bc-menu').style.display='block';
-  document.getElementById('bc-scanner-wrap').style.display='none';
-  document.getElementById('bc-processing').style.display='none';
+function bcStopRT(){
+  if(bcRTTimer){clearTimeout(bcRTTimer);bcRTTimer=null;}
+  if(bcRTStream){bcRTStream.getTracks().forEach(t=>t.stop());bcRTStream=null;}
+  document.getElementById('bc-rt-box').style.display='none';
+  document.getElementById('bc-rt-stop').classList.add('hidden');
+  document.getElementById('bc-main').style.display='block';
 }
 
-function onBarcodeDetected(text, method){
-  bcCode=text;
-  document.getElementById('iname').value=text;
-  document.getElementById('imethod').value='バーコード('+method+')';
-  document.getElementById('bc-processing').style.display='none';
-  document.getElementById('bc-menu').style.display='block';
-  document.getElementById('bc-out').innerHTML='<div class="badge bs-ok" style="margin-top:8px"><span class="dot"></span>読み取り成功: <strong>'+text+'</strong></div>';
+function bcSetResult(code, format){
+  bcCode=code;
+  document.getElementById('iname').value=code;
+  document.getElementById('imethod').value='バーコード('+format+')';
+  document.getElementById('bc-out').innerHTML='<div class="badge bs-ok" style="margin-top:8px"><span class="dot"></span>読み取り成功: <strong>'+code+'</strong></div>';
 }
 
-// ---- 送信・履歴 ----
+function bcManualSet(){
+  const code=document.getElementById('bc-manual-code').value.trim();
+  if(!code) return;
+  bcSetResult(code,'手入力');
+  document.getElementById('bc-manual-code').value='';
+}
+
+// ---- 送信 ----
 function sendViaForm(data){
   return new Promise((resolve)=>{
     const id='fr_'+Date.now();
@@ -407,9 +419,7 @@ function clearForm(){
     const el=document.getElementById(id);
     if(id==='iqty')el.value='1';else if(id==='iunit')el.value='個';else el.value='';
   });
-  document.getElementById('ocr-out').innerHTML='';
-  document.getElementById('bc-out').innerHTML='';
-  document.getElementById('sub-result').innerHTML='';
+  ['ocr-out','bc-out','sub-result'].forEach(id=>document.getElementById(id).innerHTML='');
   bcCode='';
 }
 
@@ -427,9 +437,7 @@ async function loadHistory(){
     });
     html+='</tbody></table></div>';
     document.getElementById('hist-list').innerHTML=html;
-  }catch(e){
-    document.getElementById('hist-list').innerHTML='<div class="empty">読み込みエラー: '+e.message+'</div>';
-  }
+  }catch(e){document.getElementById('hist-list').innerHTML='<div class="empty">読み込みエラー: '+e.message+'</div>';}
 }
 
 async function testGAS(){
